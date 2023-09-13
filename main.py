@@ -1,8 +1,6 @@
 import argparse
 import time
 import os
-import curses
-from subprocess import check_call as shell_cmd
 from datetime import datetime
 from tabulate import tabulate
 from functools import partial
@@ -15,14 +13,12 @@ from lib.constants import TIME_FORMAT
 from lib.constants import DATE_FORMAT
 from lib.log_manager import LogManager
 
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Record Apple findmy history for Apple devices.')
     parser.add_argument(
         '--refresh',
         type=int,
-        action='store',
         default=100,
         help='Refresh interval (ms).')
     parser.add_argument(
@@ -54,13 +50,11 @@ def parse_args():
     parser.add_argument(
         '--timestamp_key',
         type=str,
-        action='store',
         default=f'location{JSON_LAYER_SEPARATOR}timeStamp',
         help='The key of timestamp in findmy JSON')
     parser.add_argument(
         '--log_folder',
         type=str,
-        action='store',
         default='log',
         help='The path of log folder.')
     parser.add_argument(
@@ -72,9 +66,19 @@ def parse_args():
 
     return args
 
+def log_devices(log_manager):
+    while True:
+        log_manager.refresh_log()
+        
+        time.sleep(float(args.refresh) / 1000)
 
-def main(stdscr, args):
-    stdscr.clear()
+if __name__ == "__main__":
+    try:
+        shell_cmd("open -gja /System/Applications/FindMy.app", shell=True)
+    except:
+        # Maybe Apple changed the name or the dir of the app?
+        pass
+
     args = parse_args()
     log_manager = LogManager(
         findmy_files=[os.path.expanduser(f) for f in FINDMY_FILES],
@@ -87,39 +91,5 @@ def main(stdscr, args):
         null_str=NULL_STR,
         date_format=DATE_FORMAT,
         no_date_folder=args.no_date_folder)
-    while True:
-        log_manager.refresh_log()
-        latest_log, log_cnt = log_manager.get_latest_log()
-        table = []
-        for name, log in latest_log.items():
-            latest_time = log[args.timestamp_key]
-            if isinstance(latest_time, int) or isinstance(latest_time, float):
-                latest_time = datetime.fromtimestamp(
-                    float(latest_time) / 1000.)
-                latest_time = latest_time.strftime(TIME_FORMAT)
-            table.append([name, latest_time, log_cnt[name]])
-        table = tabulate(
-            table,
-            headers=['Name', 'Last update', 'Log count'],
-            tablefmt="github")
 
-        stdscr.erase()
-        try:
-            stdscr.addstr(
-                0, 0, f'Current time: {datetime.now().strftime(TIME_FORMAT)}')
-            stdscr.addstr(1, 0, table)
-        except:
-            pass
-        stdscr.refresh()
-
-        time.sleep(float(args.refresh) / 1000)
-
-
-if __name__ == "__main__":
-    try:
-        shell_cmd("open -gja /System/Applications/FindMy.app", shell=True)
-    except:
-        # Maybe Apple changed the name or the dir of the app?
-        pass
-    args = parse_args()
-    curses.wrapper(partial(main, args=args))
+    log_devices(log_manager)
